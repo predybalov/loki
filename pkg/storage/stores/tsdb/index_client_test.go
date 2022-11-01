@@ -31,14 +31,12 @@ func (m mockIndexShipperIndexIterator) ForEach(ctx context.Context, tableName, u
 
 func BenchmarkIndexClient_Stats(b *testing.B) {
 	tempDir := b.TempDir()
-	tableRanges := config.TableRanges{
-		{
-			Start: 0,
-			End:   math.MaxInt64,
-			PeriodConfig: &config.PeriodConfig{
-				IndexTables: config.PeriodicTableConfig{
-					Period: config.ObjectStorageIndexRequiredPeriod,
-				},
+	tableRange := config.TableRange{
+		Start: 0,
+		End:   math.MaxInt64,
+		PeriodConfig: &config.PeriodConfig{
+			IndexTables: config.PeriodicTableConfig{
+				Period: config.ObjectStorageIndexRequiredPeriod,
 			},
 		},
 	}
@@ -47,7 +45,7 @@ func BenchmarkIndexClient_Stats(b *testing.B) {
 	indexStartYesterday := indexStartToday.Add(-config.ObjectStorageIndexRequiredPeriod)
 
 	tables := map[string][]*TSDBFile{
-		tableRanges[0].PeriodConfig.IndexTables.TableFor(indexStartToday): {
+		tableRange.PeriodConfig.IndexTables.TableFor(indexStartToday): {
 			BuildIndex(b, tempDir, []LoadableSeries{
 				{
 					Labels: mustParseLabels(`{foo="bar"}`),
@@ -56,7 +54,7 @@ func BenchmarkIndexClient_Stats(b *testing.B) {
 			}),
 		},
 
-		tableRanges[0].PeriodConfig.IndexTables.TableFor(indexStartYesterday): {
+		tableRange.PeriodConfig.IndexTables.TableFor(indexStartYesterday): {
 			BuildIndex(b, tempDir, []LoadableSeries{
 				{
 					Labels: mustParseLabels(`{foo="bar"}`),
@@ -66,12 +64,10 @@ func BenchmarkIndexClient_Stats(b *testing.B) {
 		},
 	}
 
-	idx := newIndexShipperQuerier(mockIndexShipperIndexIterator{tables: tables}, config.TableRanges{
-		{
-			Start:        0,
-			End:          math.MaxInt64,
-			PeriodConfig: &config.PeriodConfig{},
-		},
+	idx := newIndexShipperQuerier(mockIndexShipperIndexIterator{tables: tables}, config.TableRange{
+		Start:        0,
+		End:          math.MaxInt64,
+		PeriodConfig: &config.PeriodConfig{},
 	})
 
 	indexClient := NewIndexClient(idx, IndexClientOptions{UseBloomFilters: true})
@@ -89,14 +85,12 @@ func BenchmarkIndexClient_Stats(b *testing.B) {
 
 func TestIndexClient_Stats(t *testing.T) {
 	tempDir := t.TempDir()
-	tableRanges := config.TableRanges{
-		{
-			Start: 0,
-			End:   math.MaxInt64,
-			PeriodConfig: &config.PeriodConfig{
-				IndexTables: config.PeriodicTableConfig{
-					Period: config.ObjectStorageIndexRequiredPeriod,
-				},
+	tableRange := config.TableRange{
+		Start: 0,
+		End:   math.MaxInt64,
+		PeriodConfig: &config.PeriodConfig{
+			IndexTables: config.PeriodicTableConfig{
+				Period: config.ObjectStorageIndexRequiredPeriod,
 			},
 		},
 	}
@@ -105,7 +99,7 @@ func TestIndexClient_Stats(t *testing.T) {
 	indexStartYesterday := indexStartToday.Add(-config.ObjectStorageIndexRequiredPeriod)
 
 	tables := map[string][]*TSDBFile{
-		tableRanges[0].PeriodConfig.IndexTables.TableFor(indexStartToday): {
+		tableRange.PeriodConfig.IndexTables.TableFor(indexStartToday): {
 			BuildIndex(t, tempDir, []LoadableSeries{
 				{
 					Labels: mustParseLabels(`{foo="bar"}`),
@@ -118,7 +112,7 @@ func TestIndexClient_Stats(t *testing.T) {
 			}),
 		},
 
-		tableRanges[0].PeriodConfig.IndexTables.TableFor(indexStartYesterday): {
+		tableRange.PeriodConfig.IndexTables.TableFor(indexStartYesterday): {
 			BuildIndex(t, tempDir, []LoadableSeries{
 				{
 					Labels: mustParseLabels(`{foo="bar"}`),
@@ -136,12 +130,10 @@ func TestIndexClient_Stats(t *testing.T) {
 		},
 	}
 
-	idx := newIndexShipperQuerier(mockIndexShipperIndexIterator{tables: tables}, config.TableRanges{
-		{
-			Start:        0,
-			End:          math.MaxInt64,
-			PeriodConfig: &config.PeriodConfig{},
-		},
+	idx := newIndexShipperQuerier(mockIndexShipperIndexIterator{tables: tables}, config.TableRange{
+		Start:        0,
+		End:          math.MaxInt64,
+		PeriodConfig: &config.PeriodConfig{},
 	})
 
 	indexClient := NewIndexClient(idx, IndexClientOptions{UseBloomFilters: true})
