@@ -1,6 +1,7 @@
 package loki
 
 import (
+	"path"
 	"path/filepath"
 	"testing"
 	"time"
@@ -292,10 +293,13 @@ func minimalWorkingConfig(t *testing.T, dir, target string) Config {
 	cfg.SchemaConfig = config.SchemaConfig{
 		Configs: []config.PeriodConfig{
 			{
-				IndexType:  config.StorageTypeInMemory,
+				IndexType:  config.BoltDBShipperType,
 				ObjectType: config.StorageTypeFileSystem,
-				RowShards:  16,
-				Schema:     "v11",
+				IndexTables: config.PeriodicTableConfig{
+					Period: time.Hour * 24,
+				},
+				RowShards: 16,
+				Schema:    "v11",
 				From: config.DayTime{
 					Time: model.Now(),
 				},
@@ -309,6 +313,8 @@ func minimalWorkingConfig(t *testing.T, dir, target string) Config {
 	cfg.IndexGateway.Mode = indexgateway.SimpleMode
 	cfg.IndexGateway.Ring.InstanceAddr = localhost
 	cfg.CompactorConfig.CompactorRing.InstanceAddr = localhost
+	cfg.CompactorConfig.SharedStoreType = config.StorageTypeFileSystem
+	cfg.CompactorConfig.WorkingDirectory = path.Join(dir, "compactor")
 
 	cfg.Ruler.Config.Ring.InstanceAddr = localhost
 	cfg.Ruler.Config.StoreConfig.Type = config.StorageTypeLocal
