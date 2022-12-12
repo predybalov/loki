@@ -108,10 +108,14 @@ Create the name of the service account to use
 Base template for building docker image reference
 */}}
 {{- define "loki.baseImage" }}
-{{- $registry := .global.registry | default .service.registry -}}
-{{- $repository := .service.repository -}}
+{{- $registry := .global.registry | default .service.registry | default "" -}}
+{{- $repository := .service.repository | default "" -}}
 {{- $tag := .service.tag | default .defaultVersion | toString -}}
-{{- printf "%s/%s:%s" $registry $repository $tag -}}
+{{- if and $registry $repository -}}
+  {{- printf "%s/%s:%s" $registry $repository $tag -}}
+{{- else -}}
+  {{- printf "%s%s:%s" $registry $repository $tag -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -200,7 +204,23 @@ gcs:
   bucket_name: {{ $.Values.loki.storage.bucketNames.chunks }}
   chunk_buffer_size: {{ .chunkBufferSize }}
   request_timeout: {{ .requestTimeout }}
-  enable_http2: {{ .enableHttp2}}
+  enable_http2: {{ .enableHttp2 }}
+{{- end -}}
+{{- else if eq .Values.loki.storage.type "azure" -}}
+{{- with .Values.loki.storage.azure }}
+azure:
+  account_name: {{ .accountName }}
+  {{- with .accountKey }}
+  account_key: {{ . }}
+  {{- end }}
+  container_name: {{ $.Values.loki.storage.bucketNames.chunks }}
+  use_managed_identity: {{ .useManagedIdentity }}
+  {{- with .userAssignedId }}
+  user_assigned_id: {{ . }}
+  {{- end }}
+  {{- with .requestTimeout }}
+  request_timeout: {{ . }}
+  {{- end }}
 {{- end -}}
 {{- else -}}
 {{- with .Values.loki.storage.filesystem }}
@@ -216,10 +236,12 @@ Storage config for ruler
 */}}
 {{- define "loki.rulerStorageConfig" -}}
 {{- if .Values.minio.enabled -}}
+type: "s3"
 s3:
   bucketnames: {{ $.Values.loki.storage.bucketNames.ruler }}
 {{- else if eq .Values.loki.storage.type "s3" -}}
 {{- with .Values.loki.storage.s3 }}
+type: "s3"
 s3:
   {{- with .s3 }}
   s3: {{ . }}
@@ -242,14 +264,49 @@ s3:
 {{- end -}}
 {{- else if eq .Values.loki.storage.type "gcs" -}}
 {{- with .Values.loki.storage.gcs }}
+type: "gcs"
 gcs:
   bucket_name: {{ $.Values.loki.storage.bucketNames.ruler }}
   chunk_buffer_size: {{ .chunkBufferSize }}
   request_timeout: {{ .requestTimeout }}
-  enable_http2: {{ .enableHttp2}}
+  enable_http2: {{ .enableHttp2 }}
+{{- end -}}
+{{- else if eq .Values.loki.storage.type "azure" -}}
+{{- with .Values.loki.storage.azure }}
+azure:
+  account_name: {{ .accountName }}
+  {{- with .accountKey }}
+  account_key: {{ . }}
+  {{- end }}
+  container_name: {{ $.Values.loki.storage.bucketNames.ruler }}
+  use_managed_identity: {{ .useManagedIdentity }}
+  {{- with .userAssignedId }}
+  user_assigned_id: {{ . }}
+  {{- end }}
+  {{- with .requestTimeout }}
+  request_timeout: {{ . }}
+  {{- end }}
 {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{/* Predicate function to determin if custom ruler config should be included */}}
+{{- define "loki.shouldIncludeRulerConfig" }}
+{{- or (not (empty .Values.loki.rulerConfig)) (.Values.minio.enabled) (eq .Values.loki.storage.type "s3") (eq .Values.loki.storage.type "gcs") }}
+{{- end }}
+
+{{/* Loki ruler config */}}
+{{- define "loki.rulerConfig" }}
+{{- if eq (include "loki.shouldIncludeRulerConfig" .) "true" }}
+ruler:
+{{- if (not (empty .Values.loki.rulerConfig)) }}
+{{- toYaml .Values.loki.rulerConfig | nindent 2}}
+{{- else }}
+  storage:
+  {{- include "loki.rulerStorageConfig" . | nindent 4}}
+{{- end }}
+{{- end }}
+{{- end }}
 
 {{/*
 Memcached Docker image
@@ -302,6 +359,75 @@ Return if ingress supports pathType.
 {{- end -}}
 
 {{/*
+Generate list of ingress service paths based on deployment type
+*/}}
+{{- define "loki.ingress.servicePaths" -}}
+{{- if (eq (include "loki.deployment.isScalable" .) "true") -}}
+{{- include "loki.ingress.scalableServicePaths" . }}
+{{- else -}}
+{{- include "loki.ingress.singleBinaryServicePaths" . }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Ingress service paths for scalable deployment
+*/}}
+{{- define "loki.ingress.scalableServicePaths" -}}
+{{- include "loki.ingress.servicePath" (dict "ctx" . "svcName" "read" "paths" .Values.ingress.paths.read )}}
+{{- include "loki.ingress.servicePath" (dict "ctx" . "svcName" "write" "paths" .Values.ingress.paths.write )}}
+{{- end -}}
+
+{{/*
+Ingress service paths for single binary deployment
+*/}}
+{{- define "loki.ingress.singleBinaryServicePaths" -}}
+{{- include "loki.ingress.servicePath" (dict "ctx" . "svcName" "singleBinary" "paths" .Values.ingress.paths.singleBinary )}}
+{{- end -}}
+
+{{/*
+Ingress service path helper function
+Params:
+  ctx = . context
+  svcName = service name without the "loki.fullname" part (ie. read, write)
+  paths = list of url paths to allow ingress for
+*/}}
+{{- define "loki.ingress.servicePath" -}}
+{{- $ingressApiIsStable := eq (include "loki.ingress.isStable" .ctx) "true" -}}
+{{- $ingressSupportsPathType := eq (include "loki.ingress.supportsPathType" .ctx) "true" -}}
+{{- range .paths }}
+- path: {{ . }}
+  {{- if $ingressSupportsPathType }}
+  pathType: Prefix
+  {{- end }}
+  backend:
+    {{- if $ingressApiIsStable }}
+    {{- $serviceName := include "loki.ingress.serviceName" (dict "ctx" $.ctx "svcName" $.svcName) }}
+    service:
+      name: {{ $serviceName }}
+      port:
+        number: 3100
+    {{- else }}
+    serviceName: {{ $serviceName }}
+    servicePort: 3100
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Ingress service name helper function
+Params:
+  ctx = . context
+  svcName = service name without the "loki.fullname" part (ie. read, write)
+*/}}
+{{- define "loki.ingress.serviceName" -}}
+{{- if (eq .svcName "singleBinary") }}
+{{- printf "%s" (include "loki.fullname" .ctx) }}
+{{- else }}
+{{- printf "%s-%s" (include "loki.fullname" .ctx) .svcName }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Create the service endpoint including port for MinIO.
 */}}
 {{- define "loki.minio" -}}
@@ -332,9 +458,9 @@ Create the service endpoint including port for MinIO.
 {{/* Determine the public host for the Loki cluster */}}
 {{- define "loki.host" -}}
 {{- $isSingleBinary := eq (include "loki.deployment.isSingleBinary" .) "true" -}}
-{{- $url := printf "%s.%s.svc.%s" (include "loki.gatewayFullname" .) .Release.Namespace .Values.global.clusterDomain }}
+{{- $url := printf "%s.%s.svc.%s." (include "loki.gatewayFullname" .) .Release.Namespace .Values.global.clusterDomain }}
 {{- if and $isSingleBinary (not .Values.gateway.enabled)  }}
-  {{- $url = printf "%s.%s.svc.%s:3100" (include "loki.singleBinaryFullname" .) .Release.Namespace .Values.global.clusterDomain }}
+  {{- $url = printf "%s.%s.svc.%s.:3100" (include "loki.singleBinaryFullname" .) .Release.Namespace .Values.global.clusterDomain }}
 {{- end }}
 {{- printf "%s" $url -}}
 {{- end -}}

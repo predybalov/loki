@@ -6,7 +6,6 @@ import (
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/netutil"
 
-	"github.com/grafana/loki/pkg/storage/chunk/cache"
 	"github.com/grafana/loki/pkg/storage/chunk/client/aws"
 	"github.com/grafana/loki/pkg/storage/chunk/client/azure"
 	"github.com/grafana/loki/pkg/storage/chunk/client/baidubce"
@@ -45,8 +44,8 @@ type Config struct {
 	// CompactorAddress is the http address of the compactor in the form http://host:port
 	CompactorAddress string `yaml:"compactor_address"`
 
-	// Global embedded-cache config. Independent of what type of cache, we need some singleton configs like Ring configuration when running in distributed fashion.
-	EmbeddedCacheConfig cache.EmbeddedCacheSingletonConfig `yaml:"embedded_cache"`
+	// CompactorAddress is the grpc address of the compactor in the form host:port
+	CompactorGRPCAddress string `yaml:"compactor_grpc_address"`
 }
 
 func (c *Config) RegisterFlags(f *flag.FlagSet) {
@@ -61,8 +60,7 @@ func (c *Config) RegisterFlags(f *flag.FlagSet) {
 	throwaway.Var((*flagext.StringSlice)(&c.InstanceInterfaceNames), "common.instance-interface-names", "List of network interfaces to read address from.")
 
 	f.StringVar(&c.CompactorAddress, "common.compactor-address", "", "the http address of the compactor in the form http://host:port")
-
-	c.EmbeddedCacheConfig.RegisterFlagsWithPrefix("common.embedded-cache", "", f)
+	f.StringVar(&c.CompactorGRPCAddress, "common.compactor-grpc-address", "", "the grpc address of the compactor in the form host:port")
 }
 
 type Storage struct {

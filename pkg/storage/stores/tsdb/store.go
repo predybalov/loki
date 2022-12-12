@@ -169,10 +169,7 @@ func (s *store) init(name string, indexShipperCfg indexshipper.Config, objectCli
 	}
 
 	indices = append(indices, newIndexShipperQuerier(s.indexShipper, tableRange))
-	multiIndex, err := NewMultiIndex(indices...)
-	if err != nil {
-		return err
-	}
+	multiIndex := NewMultiIndex(IndexSlice(indices))
 
 	s.Reader = NewIndexClient(multiIndex, opts)
 

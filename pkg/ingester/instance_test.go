@@ -184,9 +184,9 @@ func TestGetStreamRates(t *testing.T) {
 	close(startChannel)
 	wg.Wait()
 
-	var rates []*logproto.StreamRate
+	var rates []logproto.StreamRate
 	require.Eventually(t, func() bool {
-		rates = inst.GetStreamRates(context.Background(), &logproto.StreamRatesRequest{})
+		rates = inst.streamRateCalculator.Rates()
 
 		if len(rates) != concurrent {
 			return false
@@ -205,11 +205,11 @@ func TestGetStreamRates(t *testing.T) {
 		return valid
 	}, 3*time.Second, 100*time.Millisecond)
 
-	// Decay back to 0
+	// Decay
 	require.Eventually(t, func() bool {
-		rates = inst.GetStreamRates(context.Background(), &logproto.StreamRatesRequest{})
+		rates = inst.streamRateCalculator.Rates()
 		for _, r := range rates {
-			if r.Rate != 0 {
+			if r.Rate > 65000 {
 				return false
 			}
 		}

@@ -254,6 +254,11 @@ When Promtail receives GCP logs, various internal labels are made available for 
 When configuring the GCP Log push target, Promtail will start an HTTP server listening on port `8080`, as configured in the `server`
 section. This server exposes the single endpoint `POST /gcp/api/v1/push`, responsible for receiving logs from GCP.
 
+For Google's PubSub to be able to send logs, **Promtail server must be publicly accessible, and support HTTPS**. For that, Promtail can be deployed 
+as part of a larger orchestration service like Kubernetes, which can handle HTTPS traffic through an ingress, or it can be hosted behind
+a proxy/gateway, offloading the HTTPS to that component and routing the request to Promtail. Once that's solved, GCP can be [configured](../gcplog-cloud)
+to send logs to Promtail.
+
 It also supports `relabeling` and `pipeline` stages.
 
 When Promtail receives GCP logs, various internal labels are made available for [relabeling](#relabeling):
@@ -441,7 +446,7 @@ Configuration is specified in a`heroku_drain` block within the Promtail `scrape_
       - source_labels: ['__heroku_drain_host']
         target_label: 'host'
       - source_labels: ['__heroku_drain_app']
-        target_label: 'app'
+        target_label: 'source'
       - source_labels: ['__heroku_drain_proc']
         target_label: 'proc'
       - source_labels: ['__heroku_drain_log_id']
@@ -459,6 +464,25 @@ with a command like the following:
 
 ```
 heroku drains:add [http|https]://HOSTNAME:8080/heroku/api/v1/drain -a HEROKU_APP_NAME
+```
+
+### Getting the Heroku application name
+
+Note that the `__heroku_drain_app` label will contain the source of the log line, either `app` or `heroku` and not the name of the heroku application.
+
+The easiest way to provide the actual application name is to include a query parameter when creating the heroku drain and then relabel that parameter in your scraping config, for example:
+
+```
+heroku drains:add [http|https]://HOSTNAME:8080/heroku/api/v1/drain?app_name=HEROKU_APP_NAME -a HEROKU_APP_NAME
+
+```
+
+And then in a relabel_config:
+
+```yaml
+    relabel_configs:
+      - source_labels: ['__heroku_drain_param_app_name']
+        target_label: 'app'
 ```
 
 It also supports `relabeling` and `pipeline` stages just like other targets.

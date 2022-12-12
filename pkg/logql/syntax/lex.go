@@ -70,7 +70,8 @@ var tokens = map[string]int{
 	OpFmtLine:  LINE_FMT,
 
 	// filter functions
-	OpFilterIP: IP,
+	OpFilterIP:   IP,
+	OpDecolorize: DECOLORIZE,
 }
 
 // functionTokens are tokens that needs to be suffixes with parenthesis

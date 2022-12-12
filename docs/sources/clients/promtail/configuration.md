@@ -121,6 +121,9 @@ The `server` block configures Promtail's behavior as an HTTP server:
 # Disable the HTTP and GRPC server.
 [disable: <boolean> | default = false]
 
+# Enable the /debug/fgprof and /debug/pprof endpoints for profiling.
+[profiling_enabled: <boolean> | default = false]
+
 # HTTP server listen host
 [http_listen_address: <string>]
 
@@ -428,9 +431,10 @@ The Docker stage is just a convenience wrapper for this definition:
 
 ```yaml
 - json:
-    output: log
-    stream: stream
-    timestamp: time
+    expressions:
+      output: log
+      stream: stream
+      timestamp: time
 - labels:
     stream:
 - timestamp:
@@ -927,6 +931,9 @@ You can add additional labels with the `labels` property.
 # Allows to exclude the xml event data.
 [exclude_event_data: <bool> | default = false]
 
+# Allows to exclude the human-friendly event message.
+[exclude_event_message: <bool> | default = false]
+
 # Allows to exclude the user data of each windows event.
 [exclude_user_data: <bool> | default = false]
 
@@ -1091,7 +1098,7 @@ The list of labels below are discovered when consuming kafka:
 - `__meta_kafka_partition`: The partition id where the message has been read.
 - `__meta_kafka_member_id`: The consumer group member id.
 - `__meta_kafka_group_id`: The consumer group id.
-- `__meta_kafka_message_key`: The message key. If it is empty, this value will be 'none'. 
+- `__meta_kafka_message_key`: The message key. If it is empty, this value will be 'none'.
 
 To keep discovered labels to your logs use the [relabel_configs](#relabel_configs) section.
 
@@ -1157,7 +1164,7 @@ zone_id: <string>
 # The quantity of workers that will pull logs.
 [workers: <int> | default = 3]
 
-# The type list of fields to fetch for logs. 
+# The type list of fields to fetch for logs.
 # Supported values: default, minimal, extended, all.
 [fields_type: <string> | default = default]
 
@@ -1303,6 +1310,11 @@ The Heroku Drain target exposes for each log entry the received syslog fields wi
 - `__heroku_drain_app`: The [APP-NAME](https://tools.ietf.org/html/rfc5424#section-6.2.5) field parsed from the message.
 - `__heroku_drain_proc`: The [PROCID](https://tools.ietf.org/html/rfc5424#section-6.2.6) field parsed from the message.
 - `__heroku_drain_log_id`: The [MSGID](https://tools.ietf.org/html/rfc5424#section-6.2.7) field parsed from the message.
+
+Additionally, the Heroku drain target will read all url query parameters from the
+configured drain target url and make them available as
+`__heroku_drain_param_<name>` labels, multiple instances of the same parameter
+will appear as comma separated strings
 
 ### relabel_configs
 
@@ -1886,13 +1898,13 @@ These labels can be used during relabeling. For instance, the following configur
 
 ```yaml
 scrape_configs:
-  - job_name: flog_scrape 
+  - job_name: flog_scrape
     docker_sd_configs:
       - host: unix:///var/run/docker.sock
         refresh_interval: 5s
         filters:
           - name: name
-            values: [flog] 
+            values: [flog]
     relabel_configs:
       - source_labels: ['__meta_docker_container_name']
         regex: '/(.*)'
@@ -1918,6 +1930,12 @@ The optional `limits_config` block configures global limits for this instance of
 # log lines, rather than sending them to Loki. When false, exceeding the rate limit
 # causes this instance of Promtail to temporarily hold off on sending the log lines and retry later.
 [readline_rate_drop: <bool> | default = true]
+
+# Limits the max number of active streams.
+# Limiting the number of streams is useful as a mechanism to limit memory usage by Promtail, which helps
+# to avoid OOM scenarios.
+# 0 means it is disabled.
+[max_streams: <int> | default = 0]
 ```
 
 ## target_config
@@ -2066,7 +2084,7 @@ scrape_configs:
 
 ## Example Push Config
 
-The example starts Promtail as a Push receiver and will accept logs from other Promtail instances or the Docker Logging Dirver:
+The example starts Promtail as a Push receiver and will accept logs from other Promtail instances or the Docker Logging Driver:
 
 ```yaml
 server:
