@@ -34,21 +34,22 @@ func TestMappingEquivalence(t *testing.T) {
 		query       string
 		approximate bool
 	}{
-		{`1`, false},
-		{`1 + 1`, false},
-		{`{a="1"}`, false},
-		{`{a="1"} |= "number: 10"`, false},
-		{`rate({a=~".+"}[1s])`, false},
-		{`sum by (a) (rate({a=~".+"}[1s]))`, false},
-		{`sum(rate({a=~".+"}[1s]))`, false},
-		{`max without (a) (rate({a=~".+"}[1s]))`, false},
-		{`count(rate({a=~".+"}[1s]))`, false},
-		{`avg(rate({a=~".+"}[1s]))`, true},
-		{`avg(rate({a=~".+"}[1s])) by (a)`, true},
-		{`1 + sum by (cluster) (rate({a=~".+"}[1s]))`, false},
-		{`sum(max(rate({a=~".+"}[1s])))`, false},
-		{`max(count(rate({a=~".+"}[1s])))`, false},
-		{`max(sum by (cluster) (rate({a=~".+"}[1s]))) / count(rate({a=~".+"}[1s]))`, false},
+		//{`1`, false},
+		//{`1 + 1`, false},
+		//{`{a="1"}`, false},
+		//{`{a="1"} |= "number: 10"`, false},
+		//{`rate({a=~".+"}[1s])`, false},
+		//{`sum by (a) (rate({a=~".+"}[1s]))`, false},
+		//{`sum(rate({a=~".+"}[1s]))`, false},
+		//{`max without (a) (rate({a=~".+"}[1s]))`, false},
+		//{`count(rate({a=~".+"}[1s]))`, false},
+		//{`avg(rate({a=~".+"}[1s]))`, true},
+		//{`avg(rate({a=~".+"}[1s])) by (a)`, true},
+		//{`1 + sum by (cluster) (rate({a=~".+"}[1s]))`, false},
+		//{`sum(max(rate({a=~".+"}[1s])))`, false},
+		//{`max(count(rate({a=~".+"}[1s])))`, false},
+		//{`max(sum by (cluster) (rate({a=~".+"}[1s]))) / count(rate({a=~".+"}[1s]))`, false},
+		{`avg(avg_over_time({job="loki-prod-005/querier", nonexistantlabel1!="nonexistantval1"} |= "metrics.go" |= "type=limited" != "canary" !="findmestring" | pattern "<_>duration=<duration> <_>"| unwrap duration(duration) [1m]))`, false},
 		// topk prefers already-seen values in tiebreakers. Since the test data generates
 		// the same log lines for each series & the resulting promql.Vectors aren't deterministically
 		// sorted by labels, we don't expect this to pass.

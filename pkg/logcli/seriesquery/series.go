@@ -70,7 +70,8 @@ func (q *SeriesQuery) DoSeries(c client.Client) {
 
 	} else {
 		for _, value := range streams {
-			fmt.Println(value)
+			m := value.Map()
+			fmt.Println(m["pod"])
 		}
 	}
 

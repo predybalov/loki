@@ -1596,8 +1596,8 @@ func Test_SplitRangeVectorMapping_Noop(t *testing.T) {
 			`sum_over_time({app="foo"} | logfmt | unwrap bar [3m])`,
 		},
 		{
-			`max_over_time({app="foo"} | json | unwrap bar [3m])`,
-			`max_over_time({app="foo"} | json | unwrap bar [3m])`,
+			`max_over_time({job="loki-prod-005/querier", nonexistantlabel!="nonexistantval1"} |= "metrics.go" |= "type=limited" != "canary" !="findmestring" | pattern "<_>duration=<duration> <_>"| unwrap duration(duration) [1m]) by (_)`,
+			`max_over_time({job="loki-prod-005/querier", nonexistantlabel!="nonexistantval1"} |= "metrics.go" |= "type=limited" != "canary" !="findmestring" | pattern "<_>duration=<duration> <_>"| unwrap duration(duration) [1m]) by (_)`,
 		},
 		{
 			`min_over_time({app="foo"} | logfmt | unwrap bar [3m])`,
