@@ -252,6 +252,44 @@ func TestFrontendFailedCancellation(t *testing.T) {
 	})
 }
 
+func TestFrontendStoppingWaitsForEmpty(t *testing.T) {
+	f, _ := setupFrontend(t, nil)
+
+	inflightRequests := 10
+
+	for i := 0; i < inflightRequests; i++ {
+		f.requests.put(&frontendRequest{queryID: uint64(i)})
+	}
+	require.Equal(t, f.requests.count(), inflightRequests)
+
+	// delete inflight requests in background
+	go func() {
+		for i := 0; i < inflightRequests; i++ {
+			f.requests.delete(uint64(i))
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	// blocks until all inflight requests are done
+	f.stopping(nil)
+	require.True(t, f.stopped)
+	require.Equal(t, f.requests.count(), 0)
+}
+
+func TestFrontendIsShuttingDown(t *testing.T) {
+	f, _ := setupFrontend(t, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	f.StopAsync()
+
+	// send request
+	resp, err := f.RoundTripGRPC(user.InjectOrgID(ctx, "test"), &httpgrpc.HTTPRequest{})
+	require.EqualError(t, err, "frontend not running: Stopping")
+	require.Nil(t, resp)
+}
+
 type mockScheduler struct {
 	t *testing.T
 	f *Frontend

@@ -282,8 +282,8 @@ func (f *Frontend) QueryResult(ctx context.Context, qrReq *frontendv2pb.QueryRes
 // CheckReady determines if the query frontend is ready.  Function parameters/return
 // chosen to match the same method in the ingester
 func (f *Frontend) CheckReady(_ context.Context) error {
-	if f.stopped {
-		return errors.New("query frontend is stopped, not accepting any more queries")
+	if f.stopped || f.State() != services.Running {
+		return errors.New("not ready: query frontend is stopped, not accepting any more queries")
 	}
 
 	workers := f.schedulerWorkers.getWorkersCount()
