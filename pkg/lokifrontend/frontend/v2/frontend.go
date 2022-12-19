@@ -74,6 +74,8 @@ type Frontend struct {
 
 	schedulerWorkers *frontendSchedulerWorkers
 	requests         *requestsInProgress
+
+	stopped bool
 }
 
 type frontendRequest struct {
@@ -148,6 +150,20 @@ func (f *Frontend) starting(ctx context.Context) error {
 }
 
 func (f *Frontend) stopping(_ error) error {
+	f.stopped = true
+
+	level.Error(f.log).Log("msg", "stopping query-frontend, no longer accepting new requests")
+
+	start := time.Now()
+
+	_, cancel := context.WithTimeout(context.Background(), 5*time.Minute) // TODO dynamic
+	defer cancel()
+
+	for f.requests.count() > 0 {
+		time.Sleep(100 * time.Millisecond)
+		level.Debug(f.log).Log("msg", "outstanding queries waiting to complete before shutdown can continue", "count", f.requests.count(), "waiting_secs", time.Since(start))
+	}
+
 	return errors.Wrap(services.StopAndAwaitTerminated(context.Background(), f.schedulerWorkers), "failed to stop frontend scheduler workers")
 }
 
@@ -266,6 +282,10 @@ func (f *Frontend) QueryResult(ctx context.Context, qrReq *frontendv2pb.QueryRes
 // CheckReady determines if the query frontend is ready.  Function parameters/return
 // chosen to match the same method in the ingester
 func (f *Frontend) CheckReady(_ context.Context) error {
+	if f.stopped {
+		return errors.New("query frontend is stopped, not accepting any more queries")
+	}
+
 	workers := f.schedulerWorkers.getWorkersCount()
 
 	// If frontend is connected to at least one scheduler, we are ready.
